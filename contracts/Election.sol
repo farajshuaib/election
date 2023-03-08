@@ -23,6 +23,8 @@ contract Election is Ownable, ElectionTime {
     Counters.Counter private _ccandidateIds;
     Counters.Counter private _voteIds;
 
+    uint256 private _service_fees = 3 ether;
+
     constructor() {
         _voterIds.increment();
         _ccandidateIds.increment();
@@ -93,6 +95,23 @@ contract Election is Ownable, ElectionTime {
         _;
     }
 
+    event CandidateCreated(
+        uint256 id,
+        uint256 nationalId,
+        string name,
+        string kyc_hash_link
+    );
+
+    event FeeTransferedSuccessfully(address from, address to, uint256 amount);
+
+    function getServiceFees() public view returns (uint256) {
+        return _service_fees;
+    }
+
+    function setServiceFees(uint256 service_fees) public onlyOwner {
+        _service_fees = service_fees;
+    }
+
     function createVoter(
         string memory name,
         uint256 nationalId,
@@ -116,6 +135,7 @@ contract Election is Ownable, ElectionTime {
         string memory kyc_hash_link
     )
         public
+        payable
         votingDuration
         isEligibleToRegisterAsCandidate(nationalId, name, age, kyc_hash_link)
     {
@@ -129,6 +149,12 @@ contract Election is Ownable, ElectionTime {
             age: age,
             kyc_hash_link: kyc_hash_link
         });
+
+        emit CandidateCreated(newCandidateId, nationalId, name, kyc_hash_link);
+
+        payable(owner()).transfer(getServiceFees());
+
+        emit FeeTransferedSuccessfully(msg.sender, owner(), getServiceFees());
     }
 
     function vote(
