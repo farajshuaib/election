@@ -2,6 +2,10 @@
 pragma solidity >=0.6.0 <0.9.0;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/Counters.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "@openzeppelin/contracts/utils/Address.sol";
+
 import "./Types.sol";
 import "./ElectionTime.sol";
 
@@ -11,121 +15,225 @@ import "./ElectionTime.sol";
  * @dev Implements voting process along with winning candidate
  */
 contract Election is Ownable, ElectionTime {
-    Types.Candidate[] public candidates;
-    mapping(uint256 => Types.Voter) voter;
-    mapping(uint256 => Types.Candidate) candidate;
-    mapping(uint256 => uint256) internal votesCount;
+    using Counters for Counters.Counter;
+    using SafeMath for uint256;
+    using Address for address payable;
 
-    /**
-     * @dev Get candidate list.
-     * @return candidatesList_ All the politicians who participate in the election
-     */
-    function getCandidateList(uint256 voterIndex) public view returns (Types.Candidate[] memory) {
-        Types.Voter storage voter_ = voter[voterIndex];
-        uint256 _politicianOfMyConstituencyLength = 0;
+    Counters.Counter private _voterIds;
+    Counters.Counter private _ccandidateIds;
+    Counters.Counter private _voteIds;
 
-        for (uint256 i = 0; i < candidates.length; i++) {
-            if (
-                voter_.stateCode == candidates[i].stateCode &&
-                voter_.constituencyCode == candidates[i].constituencyCode
-            ) _politicianOfMyConstituencyLength++;
-        }
-        Types.Candidate[] memory cc = new Types.Candidate[](
-            _politicianOfMyConstituencyLength
-        );
-
-        uint256 _indx = 0;
-        for (uint256 i = 0; i < candidates.length; i++) {
-            if (
-                voter_.stateCode == candidates[i].stateCode &&
-                voter_.constituencyCode == candidates[i].constituencyCode
-            ) {
-                cc[_indx] = candidates[i];
-                _indx++;
-            }
-        }
-        return cc;
+    constructor() {
+        _voterIds.increment();
+        _ccandidateIds.increment();
     }
 
-    /**
-     * @dev Get candidate list.
-     * @return voterEligible_ Whether the voter with provided aadhar is eligible or not
-     */
-    function isVoterEligible(uint256 voterIndex)
-        public
-        view
-        returns (bool voterEligible_)
-    {
-        Types.Voter storage voter_ = voter[voterIndex];
-        if (voter_.age >= 18 && voter_.isAlive) voterEligible_ = true;
-    }
-
-    /**
-     * @dev Know whether the voter casted their vote or not. If casted get candidate object.
-     * @return userVoted_ Boolean value which gives whether current voter casted vote or not
-     * @return candidate_ Candidate details to whom voter casted his/her vote
-     */
-    function didCurrentVoterVoted(uint256 voterIndex)
-        public
-        view
-        returns (bool userVoted_, Types.Candidate memory candidate_)
-    {
-        userVoted_ = (voter[voterIndex].votedTo != 0);
-        if (userVoted_) candidate_ = candidate[voter[voterIndex].votedTo];
-    }
-
-    /**
-     * @dev Give your vote to candidate.
-     */
-    function vote(uint256 nominationNumber, uint256 voterIndex)
-        public
-        votingDuration
-        isEligibleVote(voterIndex, nominationNumber)
-    {
-        // updating the current voter values
-        voter[voterIndex].votedTo = nominationNumber;
-
-        // updates the votes the politician
-        uint256 voteCount_ = votesCount[nominationNumber];
-        votesCount[nominationNumber] = voteCount_ + 1;
-    }
-
-    /**
-     * @dev sends all candidate list with their votes count
-     * @return candidateList_ List of Candidate objects with votes count
-     */
-    function getResults() public view returns (Types.Results[] memory) {
-        Types.Results[] memory resultsList_ = new Types.Results[](
-            candidates.length
-        );
-        for (uint256 i = 0; i < candidates.length; i++) {
-            resultsList_[i] = Types.Results({
-                name: candidates[i].name,
-                partyShortcut: candidates[i].partyShortcut,
-                partyFlag: candidates[i].partyFlag,
-                nominationNumber: candidates[i].nominationNumber,
-                stateCode: candidates[i].stateCode,
-                constituencyCode: candidates[i].constituencyCode,
-                voteCount: votesCount[candidates[i].nominationNumber]
-            });
-        }
-        return resultsList_;
-    }
+    mapping(uint256 => Types.Voter) idVoter;
+    mapping(uint256 => Types.Candidate) idCandidate;
+    mapping(uint256 => Types.Vote) idVote;
 
     /**
      * @notice To check if the voter's age is greater than or equal to 18
      */
-    modifier isEligibleVote(uint256 voterIndex, uint256 nominationNumber_) {
-        Types.Voter memory voter_ = voter[voterIndex];
-        Types.Candidate memory politician_ = candidate[nominationNumber_];
-        require(voter_.age >= 18, "Voter is not eligible to vote");
-        require(voter_.isAlive, "Voter is not alive");
-        require(voter_.votedTo == 0, "Voter already voted");
+    modifier isEligibleVote(uint256 voterIndex, uint256 candidateIndex) {
+        require(msg.sender != address(0), "address not found !!");
         require(
-            (politician_.stateCode == voter_.stateCode &&
-                politician_.constituencyCode == voter_.constituencyCode),
-            "Voter is not eligible to vote for this candidate"
+            idVoter[voterIndex].nationalId != 0,
+            "You are not registered as a voter"
+        );
+        require(
+            idCandidate[candidateIndex].nationalId != 0,
+            "You are not trying to vote for not registered candidate"
+        );
+        require(
+            idVote[voterIndex].voterId == 0,
+            "You are already voted for this election, you can't vote again"
         );
         _;
+    }
+
+    modifier isEligibleToRegisterAsVoter(
+        uint256 nationalId,
+        string memory name,
+        uint8 age
+    ) {
+        require(msg.sender != address(0), "address not found !!");
+        require(
+            idVoter[nationalId].nationalId == 0,
+            "You are already registered as a voter"
+        );
+        require(age >= 18, "You are not eligible to register as a voter");
+        require(
+            bytes(name).length > 0,
+            "You must enter your name to register as a voter"
+        );
+        _;
+    }
+
+    modifier isEligibleToRegisterAsCandidate(
+        uint256 nationalId,
+        string memory name,
+        uint8 age,
+        string memory kyc_hash_link
+    ) {
+        require(msg.sender != address(0), "address not found !!");
+        require(
+            idCandidate[nationalId].nationalId == 0,
+            "You are already registered as a candidate"
+        );
+        require(age >= 18, "You are not eligible to register as a candidate");
+        require(
+            bytes(name).length > 0,
+            "You must enter your name to register as a candidate"
+        );
+        require(
+            bytes(kyc_hash_link).length > 0,
+            "You must enter your kyc_hash_link to register as a candidate"
+        );
+        _;
+    }
+
+    function createVoter(
+        string memory name,
+        uint256 nationalId,
+        uint8 age
+    ) public votingDuration isEligibleToRegisterAsVoter(nationalId, name, age) {
+        _voterIds.increment();
+        uint256 newVoterId = _voterIds.current();
+
+        idVoter[newVoterId] = Types.Voter({
+            id: newVoterId,
+            nationalId: nationalId,
+            name: name,
+            age: age
+        });
+    }
+
+    function createCandidate(
+        string memory name,
+        uint256 nationalId,
+        uint8 age,
+        string memory kyc_hash_link
+    )
+        public
+        votingDuration
+        isEligibleToRegisterAsCandidate(nationalId, name, age, kyc_hash_link)
+    {
+        _ccandidateIds.increment();
+        uint256 newCandidateId = _ccandidateIds.current();
+
+        idCandidate[newCandidateId] = Types.Candidate({
+            id: newCandidateId,
+            nationalId: nationalId,
+            name: name,
+            age: age,
+            kyc_hash_link: kyc_hash_link
+        });
+    }
+
+    function vote(
+        uint256 voterIndex,
+        uint256 candidateIndex
+    ) public votingDuration isEligibleVote(voterIndex, candidateIndex) {
+        _voteIds.increment();
+        uint256 newVoteId = _voteIds.current();
+
+        idVote[newVoteId] = Types.Vote({
+            id: newVoteId,
+            voterId: voterIndex,
+            candidateId: candidateIndex
+        });
+    }
+
+    function getVoter(
+        uint256 voterIndex
+    ) public view returns (Types.Voter memory) {
+        return idVoter[voterIndex];
+    }
+
+    function getCandidate(
+        uint256 candidateIndex
+    ) public view returns (Types.Candidate memory) {
+        return idCandidate[candidateIndex];
+    }
+
+    function getVote(
+        uint256 voteIndex
+    ) public view returns (Types.Vote memory) {
+        return idVote[voteIndex];
+    }
+
+    function getVoterCount() public view returns (uint256) {
+        return _voterIds.current();
+    }
+
+    function getCandidateCount() public view returns (uint256) {
+        return _ccandidateIds.current();
+    }
+
+    function getVoteCount() public view returns (uint256) {
+        return _voteIds.current();
+    }
+
+    function getVotersList() public view returns (Types.Voter[] memory) {
+        uint256 voterCount = getVoterCount();
+        Types.Voter[] memory voters = new Types.Voter[](voterCount);
+        for (uint256 i = 1; i <= voterCount; i++) {
+            voters[i - 1] = getVoter(i);
+        }
+        return voters;
+    }
+
+    function getCandidatesList()
+        public
+        view
+        returns (Types.Candidate[] memory)
+    {
+        uint256 candidateCount = getCandidateCount();
+        Types.Candidate[] memory candidates = new Types.Candidate[](
+            candidateCount
+        );
+        for (uint256 i = 1; i <= candidateCount; i++) {
+            candidates[i - 1] = getCandidate(i);
+        }
+        return candidates;
+    }
+
+    function getVotesList() public view returns (Types.Vote[] memory) {
+        uint256 voteCount = getVoteCount();
+        Types.Vote[] memory votes = new Types.Vote[](voteCount);
+        for (uint256 i = 1; i <= voteCount; i++) {
+            votes[i - 1] = getVote(i);
+        }
+        return votes;
+    }
+
+    function getCandidateVotes(
+        uint256 candidateIndex
+    ) public view returns (Types.Vote[] memory) {
+        uint256 voteCount = getVoteCount();
+        Types.Vote[] memory votes = new Types.Vote[](voteCount);
+        uint256 j = 0;
+        for (uint256 i = 1; i <= voteCount; i++) {
+            if (idVote[i].candidateId == candidateIndex) {
+                votes[j] = getVote(i);
+                j++;
+            }
+        }
+        return votes;
+    }
+
+    function getWinnerCandidate() public view returns (Types.Candidate memory) {
+        uint256 candidateCount = getCandidateCount();
+        uint256 maxVotes = 0;
+        uint256 winnerCandidateId = 0;
+        for (uint256 i = 1; i <= candidateCount; i++) {
+            uint256 candidateVotesCount = getCandidateVotes(i).length;
+            if (candidateVotesCount > maxVotes) {
+                maxVotes = candidateVotesCount;
+                winnerCandidateId = i;
+            }
+        }
+        return getCandidate(winnerCandidateId);
     }
 }

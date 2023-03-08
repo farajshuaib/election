@@ -31,7 +31,7 @@ const config: HardhatUserConfig = {
       chainId: 1337,
     },
     goerli: {
-      url: `https://eth-goerli.g.alchemy.com/v2/${process.env.PROJECT_ID}`,
+      url: `https://goerli.infura.io/v3/${process.env.PROJECT_ID}`,
       accounts: [process.env.PRIVATE_KEY || ""],
       gas: "auto",
       gasPrice: "auto",

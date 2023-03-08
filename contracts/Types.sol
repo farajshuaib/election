@@ -8,34 +8,30 @@ pragma solidity >=0.6.0 <0.9.0;
  */
 library Types {
     struct Voter {
-        uint256 id; // voter unique ID example: الرقم الوطني
+        uint256 id;
+        uint256 nationalId; // voter unique ID example: الرقم الوطني
         string name;
         uint8 age;
-        uint8 stateCode;
-        uint8 constituencyCode;
-        bool isAlive;
-        uint256 votedTo; // aadhar number of the candidate
     }
 
     struct Candidate {
         // Note: If we can limit the length to a certain number of bytes,
         // we can use one of bytes1 to bytes32 because they are much cheaper
-
+        uint256 id;
+        uint256 nationalId; // candidate unique ID example: الرقم الوطني
         string name;
-        string partyShortcut;
-        string partyFlag;
-        uint256 nominationNumber; // unique ID of candidate
-        uint8 stateCode;
-        uint8 constituencyCode;
+        uint8 age;
+        string kyc_hash_link;
     }
 
-    struct Results {
-        string name;
-        string partyShortcut;
-        string partyFlag;
-        uint256 voteCount; // number of accumulated votes
-        uint256 nominationNumber; // unique ID of candidate رقم المترشح
-        uint8 stateCode;
-        uint8 constituencyCode;
+    struct Vote {
+        uint256 id;
+        uint256 voterId;
+        uint256 candidateId;
+    }
+
+    struct Result {
+        uint256 candidateId;
+        uint256 votes;
     }
 }
