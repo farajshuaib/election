@@ -12,6 +12,7 @@ library Types {
         uint256 nationalId; // voter unique ID example: الرقم الوطني
         string name;
         uint8 age;
+        address walletAddress;
     }
 
     struct Candidate {
@@ -22,6 +23,7 @@ library Types {
         string name;
         uint8 age;
         string kyc_hash_link;
+        address walletAddress;
     }
 
     struct Vote {

@@ -33,7 +33,6 @@ contract Election is Ownable, ElectionTime {
     mapping(uint256 => Types.Voter) idVoter;
     mapping(uint256 => Types.Candidate) idCandidate;
     mapping(uint256 => Types.Vote) idVote;
-
     /**
      * @notice To check if the voter's age is greater than or equal to 18
      */
@@ -124,7 +123,8 @@ contract Election is Ownable, ElectionTime {
             id: newVoterId,
             nationalId: nationalId,
             name: name,
-            age: age
+            age: age,
+            walletAddress: msg.sender
         });
     }
 
@@ -147,7 +147,8 @@ contract Election is Ownable, ElectionTime {
             nationalId: nationalId,
             name: name,
             age: age,
-            kyc_hash_link: kyc_hash_link
+            kyc_hash_link: kyc_hash_link,
+            walletAddress: msg.sender
         });
 
         emit CandidateCreated(newCandidateId, nationalId, name, kyc_hash_link);
@@ -177,10 +178,38 @@ contract Election is Ownable, ElectionTime {
         return idVoter[voterIndex];
     }
 
+    function getVoterByWalletAddress(address walletAddress)
+        public
+        view
+        returns (Types.Voter memory)
+    {
+
+        for (uint256 i = 1; i <= getVoterCount(); i++) {
+            if (idVoter[i].walletAddress == walletAddress) {
+                return idVoter[i];
+            }
+        }
+        return Types.Voter(0, 0, "", 0, address(0));
+    }
+
     function getCandidate(
         uint256 candidateIndex
     ) public view returns (Types.Candidate memory) {
         return idCandidate[candidateIndex];
+    }
+
+    function getCandidateByWalletAddress(address walletAddress)
+        public
+        view
+        returns (Types.Candidate memory)
+    {
+
+        for (uint256 i = 1; i <= getCandidateCount(); i++) {
+            if (idCandidate[i].walletAddress == walletAddress) {
+                return idCandidate[i];
+            }
+        }
+        return Types.Candidate(0, 0, "", 0, "", address(0));
     }
 
     function getVote(
